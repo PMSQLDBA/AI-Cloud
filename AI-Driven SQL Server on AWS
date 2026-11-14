@@ -103,7 +103,7 @@ This is particularly important because database troubleshooting should follow a 
 
 The AWS reference architecture connects AWS DevOps Agent to Amazon RDS for SQL Server through Amazon Bedrock AgentCore Gateway.
 
-[Strands와 AgentCore를 활용해 Amazon RDS for SQL Server용 에이전틱 AI 구축하기 | AWS 기술 블로그](https://images.openai.com/static-rsc-4/JwxdeGDaeJOcdW2GnCaLNIEKMr13AwH655soFQwzo29sqaotemcViFj-Hfj-p5y3Ly1LXPT5D4CCnjTYFJLjCPN-u3aIZugPzcM4hhsLAH0iOnSaT66OeGtrJPkm3ufDpWn0tpWdTzs2KFNxYOQZ1IH0D-9jmxSDLvJjkvC2pKU?purpose=inline)
+https://images.openai.com/static-rsc-4/IAo5dbPoYMggrTJ3uFdYXV_wPQGAfiPtO-cJ6jjUOBqBpPxdyd7LDVeB2zSIiO5n614zhp775sPsWxq7pUkW9-JidpymIHPefoka1FBy-YXoMerzDJd06QUhmGppHWBJNpDwywxtEAEXR1P7svWVEeV85R5cFyiB1SyzacY3bPeJhFiIQ7pPcmKLwBWc5ke3?purpose=fullsize
 
 [aws.amazon.com](https://aws.amazon.com/ko/blogs/tech/building-agentic-ai-for-amazon-rds-for-sql-server-with-strands-and-agentcore/)
 
