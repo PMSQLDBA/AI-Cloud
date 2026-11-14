@@ -1,0 +1,698 @@
+# **AI-Driven SQL Server Database Investigation Using MCP, Agent Skills, and AWS DevOps Agent**
+
+Technical Deep Dive | SQL Server DBA | AWS | Agentic AI | Database Observability
+
+**Based on the AWS Database Blog published November 12, 2026, by Sudhir Amin and Vishal Srivastava.**&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://aws.amazon.com\&sz=32)
+
+AWS Database Blog
+
+## **1. Introduction**
+
+Database troubleshooting has traditionally been a manual, time-consuming process for Database Administrators (DBAs).
+
+When a production SQL Server experiences high CPU, blocking, deadlocks, query timeouts, or increased I/O latency, DBAs typically need to:
+
+- Review CloudWatch metrics and alarms.
+- Analyze SQL Server wait statistics.
+- Identify expensive queries.
+- Investigate blocking chains.
+- Examine execution plans.
+- Review Query Store history.
+- Correlate database activity with application changes.
+- Identify the root cause and prepare remediation steps.
+
+This process requires knowledge of multiple monitoring tools, SQL Server internals, and AWS services.
+
+AWS introduces an interesting approach by combining three technologies:
+
+1. **Model Context Protocol (MCP)** – exposes database diagnostic capabilities as standardized tools.
+2. **AWS DevOps Agent Skills** – defines how the agent should investigate database incidents.
+3. **AWS DevOps Agent** – autonomously investigates operational incidents and provides findings.
+
+The objective is to move from reactive, manual database troubleshooting toward AI-assisted, evidence-based database investigation.
+
+An important distinction: AI-assisted investigation does not mean unrestricted autonomous database administration. The architecture separates diagnostic access from operational remediation.
+
+## **2. Understanding the Three Core Technologies**
+
+### **2.1 Model Context Protocol (MCP)**
+
+MCP is a standardized protocol that allows AI applications to discover and interact with external tools and data sources.
+
+In database administration, MCP can expose SQL Server diagnostic operations such as:
+
+- Retrieve blocking sessions.
+- Identify slow-running queries.
+- Read Query Store information.
+- Retrieve cached execution plans.
+- Analyze index usage.
+- Identify missing-index recommendations.
+
+Instead of asking an AI model to guess what is happening inside SQL Server, MCP provides a controlled mechanism to retrieve actual database information.
+
+**Example:**
+
+A DBA asks:
+
+"Why is my production SQL Server experiencing high response times?"
+
+The agent can invoke diagnostic tools to retrieve:
+
+- Current blocking sessions.
+- Top CPU-consuming queries.
+- Query Store wait statistics.
+- Execution plan information.
+- Index usage statistics.
+
+The agent then correlates these results to identify possible bottlenecks.
+
+### **2.2 AWS DevOps Agent**
+
+AWS DevOps Agent is a managed service designed to investigate operational incidents.
+
+It can:
+
+- Receive operational alarms.
+- Correlate related events.
+- Investigate infrastructure and application telemetry.
+- Invoke external diagnostic tools.
+- Generate incident findings.
+- Share reports through supported team channels.
+
+For SQL Server, it can combine AWS monitoring information with database-level diagnostic information exposed through MCP.
+
+The key advantage is that organizations do not need to independently build, deploy, and maintain the entire investigation agent.
+
+### **2.3 AWS DevOps Agent Skills**
+
+Agent Skills are reusable instruction files that define how the agent should perform specialized tasks.
+
+For example, a SQL Server investigation skill can define:
+
+- When to investigate a database incident.
+- Which metrics to examine first.
+- What constitutes warning or critical severity.
+- How to investigate CPU, blocking, I/O, and memory issues.
+- Which MCP tools to invoke.
+- How to correlate evidence.
+- How to prepare the final RCA report.
+
+This is particularly important because database troubleshooting should follow a consistent methodology rather than depend entirely on an AI model's general knowledge.
+
+## **3. Solution Architecture – How the Components Work Together**
+
+The AWS reference architecture connects AWS DevOps Agent to Amazon RDS for SQL Server through Amazon Bedrock AgentCore Gateway.
+
+[Strands와 AgentCore를 활용해 Amazon RDS for SQL Server용 에이전틱 AI 구축하기 | AWS 기술 블로그](https://images.openai.com/static-rsc-4/JwxdeGDaeJOcdW2GnCaLNIEKMr13AwH655soFQwzo29sqaotemcViFj-Hfj-p5y3Ly1LXPT5D4CCnjTYFJLjCPN-u3aIZugPzcM4hhsLAH0iOnSaT66OeGtrJPkm3ufDpWn0tpWdTzs2KFNxYOQZ1IH0D-9jmxSDLvJjkvC2pKU?purpose=inline)
+
+[aws.amazon.com](https://aws.amazon.com/ko/blogs/tech/building-agentic-ai-for-amazon-rds-for-sql-server-with-strands-and-agentcore/)
+
+### **Architecture components**
+
+| Component                        | Responsibility                               |
+| -------------------------------- | -------------------------------------------- |
+| AWS DevOps Agent                 | Investigates operational incidents           |
+| Amazon Bedrock AgentCore Gateway | Provides the managed MCP endpoint            |
+| AWS Lambda                       | Executes SQL Server diagnostic tools         |
+| Amazon RDS for SQL Server        | Provides database diagnostic information     |
+| Amazon CloudWatch                | Collects infrastructure and database metrics |
+| CloudWatch Database Insights     | Provides database performance telemetry      |
+| AWS Secrets Manager              | Securely stores database credentials         |
+| AWS IAM                          | Controls permissions and access              |
+| AWS CloudFormation               | Deploys the sample architecture              |
+
+### **Architecture workflow**
+
+The investigation follows this sequence:
+
+1. CloudWatch detects an abnormal database metric.
+2. A CloudWatch alarm invokes a webhook executor Lambda function.
+3. The Lambda function sends the event to AWS DevOps Agent.
+4. AWS DevOps Agent loads the relevant SQL Server investigation skill.
+5. The agent reviews CloudWatch metrics, Database Insights, CloudWatch Logs, and CloudTrail.
+6. When deeper SQL Server diagnostics are required, it invokes MCP tools through AgentCore Gateway.
+7. AgentCore Gateway authenticates the request and invokes the diagnostic Lambda function.
+8. The Lambda function retrieves database credentials from Secrets Manager.
+9. It connects to Amazon RDS for SQL Server and executes the required diagnostic operations.
+10. Results are returned to the agent for correlation and root cause analysis.
+11. The agent generates findings and sends them to supported notification channels.
+
+**Important architectural decision:** AWS DevOps Agent does not connect directly to SQL Server. Database access is mediated by the Gateway and Lambda function.
+
+This separation helps protect database credentials and restrict access.
+
+[image](https://www.google.com/s2/favicons?domain=https://aws.amazon.com\&sz=32)
+
+AWS Database Blog
+
+## **4. Five-Step SQL Server Investigation Methodology**
+
+One of the most valuable aspects of this architecture is the five-step investigation methodology defined in the SQL Server Agent Skill.
+
+1. **TRIAGE – Assess overall database health**
+
+   Examine CPU, memory, connections, I/O latency, database load, and active alarms.
+2. **DIAGNOSE – Identify the bottleneck**
+
+   Analyze wait statistics and determine whether the primary issue is CPU, locking, I/O, memory, or network-related.
+3. **DRILL DOWN – Investigate the problem**
+
+   Retrieve blocking chains, slow queries, execution plans, Query Store history, and index information.
+4. **CORRELATE – Connect the evidence**
+
+   Compare the incident with historical baselines, recent performance regressions, and infrastructure or application changes.
+5. **RECOMMEND – Generate actionable findings**
+
+   Report severity, root cause, supporting evidence, and prioritized remediation recommendations.
+
+### **Why this methodology matters**
+
+Consider a database experiencing high CPU.
+
+A traditional monitoring alert might simply report:
+
+`CPU Utilization = 92%`
+
+That metric tells us the database is under pressure, but it does not explain why.
+
+A structured investigation can determine:
+
+- Which queries consume the most CPU?
+- Did a query recently regress?
+- Is an execution plan inefficient?
+- Are missing indexes contributing to excessive reads?
+- Is the CPU issue recurring at a specific time?
+- Did an application deployment coincide with the performance degradation?
+
+This converts a monitoring alert into a diagnostic investigation.
+
+## **5. SQL Server Diagnostic Tools Exposed Through MCP**
+
+The AWS reference implementation provides 13 diagnostic tools through the `dbops-query-tools` Lambda function.
+
+| MCP tool                            | Purpose                                                |
+| ----------------------------------- | ------------------------------------------------------ |
+| `check_query_store_enabled`         | Checks whether Query Store is enabled                  |
+| `get_query_store_top_queries`       | Retrieves top queries by CPU, duration, I/O, or memory |
+| `get_query_store_regressed_queries` | Identifies performance regressions                     |
+| `get_query_store_wait_stats`        | Retrieves Query Store wait statistics                  |
+| `get_query_execution_history`       | Examines query execution history                       |
+| `get_query_store_plan_summary`      | Summarizes execution plans                             |
+| `get_slow_queries`                  | Identifies currently slow-running queries              |
+| `get_blocking_sessions`             | Retrieves blocking chains                              |
+| `get_query_plan_from_cache`         | Retrieves cached execution plans                       |
+| `get_expensive_queries_from_cache`  | Identifies expensive cached queries                    |
+| `suggest_indexes`                   | Retrieves missing-index suggestions                    |
+| `get_index_usage`                   | Examines index usage statistics                        |
+| `send_email_notification`           | Sends notifications through Amazon SNS                 |
+
+[image](https://www.google.com/s2/favicons?domain=https://aws.amazon.com\&sz=32)
+
+AWS Database Blog
+
+### **Practical DBA interpretation**
+
+These tools cover several important areas of SQL Server performance management:
+
+**Query Store analysis**
+
+- Historical query performance.
+- Plan changes.
+- Query regressions.
+- Query-level wait statistics.
+
+**Real-time troubleshooting**
+
+- Currently running slow queries.
+- Blocking sessions.
+- Expensive cached queries.
+
+**Index analysis**
+
+- Index usage.
+- Missing-index recommendations.
+
+The important design principle is that AWS telemetry identifies the general problem, while MCP tools provide the database-level evidence.
+
+## **6. Real-World Use Case 1: SQL Server Blocking Investigation**
+
+Consider a production e-commerce database hosted on Amazon RDS for SQL Server.
+
+Users report:
+
+- Application pages loading slowly.
+- Order processing delays.
+- Database connection count increasing.
+- Transaction timeouts.
+
+CloudWatch triggers a HighConnections alarm.
+
+### **Traditional DBA investigation**
+
+A DBA would typically:
+
+1. Open CloudWatch.
+2. Review the connection-count metric.
+3. Connect to SQL Server.
+4. Execute blocking diagnostic queries.
+5. Identify the head blocker.
+6. Examine the SQL statement.
+7. Investigate the application transaction.
+8. Recommend remediation.
+
+### **AI-driven investigation**
+
+The AWS DevOps Agent receives the alarm and executes the investigation skill.
+
+The diagnostic tools identify:
+
+- Head blocker session ID: 78.
+- Approximately 14 sessions waiting behind the head blocker.
+- An exclusive lock on a row in `dbo.Orders`.
+- A transaction holding the lock for approximately five minutes.
+- A recurring connection spike approximately every 30 minutes.
+
+The investigation identifies a client-side transaction pattern involving an uncommitted transaction and a five-minute delay.
+
+The agent recommends:
+
+1. Removing the unnecessary delay inside the transaction.
+2. Reducing the duration of the transaction.
+3. Setting appropriate client connection and command timeouts.
+4. Reviewing the connection-count alarm threshold.
+
+The agent also identifies an investigation gap: it cannot establish the originating scheduler or application process from the available evidence.
+
+This is an important detail. A reliable investigation agent should identify missing evidence instead of inventing a root cause.
+
+[image](https://www.google.com/s2/favicons?domain=https://aws.amazon.com\&sz=32)
+
+AWS Database Blog
+
+### **DBA takeaway**
+
+Blocking is not necessarily a SQL Server engine problem.
+
+It can originate from:
+
+- Poor application transaction management.
+- Long-running transactions.
+- Missing transaction commits.
+- Application connection handling.
+- Excessive lock duration.
+
+An AI investigation can accelerate identification, but the application owner may still need to validate the actual source.
+
+## **7. Real-World Use Case 2: Proactive High CPU Investigation**
+
+Imagine an Amazon RDS SQL Server instance experiences recurring CPU spikes.
+
+Example scenario
+
+| Metric          | Observed condition   |
+| --------------- | -------------------- |
+| CPU utilization | 90%                  |
+| Active sessions | Increasing           |
+| Query duration  | Increasing           |
+| Logical reads   | Higher than baseline |
+| Query Store     | Enabled              |
+
+The agent starts by examining CloudWatch and Database Insights.
+
+It then uses MCP tools to retrieve:
+
+- Top CPU-consuming queries.
+- Query Store execution history.
+- Regressed queries.
+- Cached execution plans.
+- Missing-index recommendations.
+
+Possible findings include:
+
+- A query suddenly consuming more CPU.
+- An execution plan change.
+- Increased logical reads.
+- A query regression following an application release.
+
+### **Recommended DBA actions**
+
+- Compare current and historical execution plans.
+- Review parameter sensitivity.
+- Examine statistics freshness.
+- Validate index recommendations.
+- Review query predicates and SARGability.
+- Test appropriate query or index changes in a non-production environment.
+
+**Important:** A missing-index recommendation is not an automatic instruction to create an index. DBAs must evaluate existing indexes, write overhead, storage requirements, and workload characteristics.
+
+## **8. Real-World Use Case 3: I/O Latency Investigation**
+
+Consider a financial application hosted on Amazon RDS for SQL Server.
+
+Users complain about slow reports and transaction processing.
+
+The agent identifies increased read latency and I/O pressure.
+
+It can follow the investigation path:
+
+1. Review read and write latency.
+2. Examine IOPS utilization.
+3. Identify queries with high physical I/O.
+4. Review Query Store wait statistics.
+5. Examine execution plans.
+6. Correlate the issue with historical workload patterns.
+
+### **Potential root causes**
+
+- Excessive table scans.
+- Inefficient joins.
+- Missing or inappropriate indexes.
+- Large reporting queries competing with OLTP workloads.
+- Insufficient storage performance capacity.
+- Poorly optimized queries.
+
+### **DBA remediation**
+
+Depending on the evidence:
+
+- Optimize high-I/O queries.
+- Review indexing strategy.
+- Separate reporting workloads where appropriate.
+- Evaluate storage configuration.
+- Review execution plans and statistics.
+
+The agent identifies the likely bottleneck, but the DBA remains responsible for validating the proposed changes.
+
+## **9. Security Architecture and Access Control**
+
+For production database environments, security is one of the most important parts of this implementation.
+
+AWS has designed the reference architecture with multiple access-control layers.
+
+**Layer 1 – AWS DevOps Agent IAM role**
+
+- Read-only AWS API access.
+- No direct Secrets Manager permissions.
+- No direct SQL Server connectivity.
+- Access restricted to approved MCP tools.
+
+**Layer 2 – AgentCore Gateway and Lambda role**
+
+- Authenticates MCP requests using AWS Signature Version 4 (SigV4).
+- Enforces tool access policies.
+- Retrieves database credentials from Secrets Manager.
+- Executes approved diagnostic operations.
+
+**Layer 3 – SQL Server login**
+
+- `VIEW SERVER STATE`
+- `VIEW DATABASE STATE`
+- No permission to modify database objects.
+- No permission to change database schema.
+- No permission to terminate sessions.
+
+This separation provides an important security boundary: the AI agent does not receive the database password or unrestricted database access.
+
+[image](https://www.google.com/s2/favicons?domain=https://aws.amazon.com\&sz=32)
+
+AWS Database Blog
+
+### **Additional enterprise security recommendations**
+
+For production adoption, DBAs and security teams should also consider:
+
+- Restricting MCP tool access using least-privilege policies.
+- Auditing every diagnostic request.
+- Protecting sensitive SQL text and execution-plan information.
+- Defining data-retention policies for investigation logs.
+- Using private networking wherever applicable.
+- Reviewing credential rotation and secret access.
+- Testing prompt-injection and untrusted database-output scenarios.
+- Requiring human approval for production changes.
+
+A read-only diagnostic architecture is preferable to granting an AI agent unrestricted administrative permissions.
+
+## **10. Implementation Prerequisites**
+
+Before deploying the AWS sample implementation, validate the following requirements.
+
+| Requirement     | Description                                        |
+| --------------- | -------------------------------------------------- |
+| Database        | Amazon RDS for SQL Server                          |
+| Monitoring      | CloudWatch Database Insights enabled               |
+| Credentials     | Database credentials stored in AWS Secrets Manager |
+| SQL permissions | `VIEW SERVER STATE` and `VIEW DATABASE STATE`      |
+| Networking      | VPC private subnets                                |
+| Security group  | Connectivity to RDS on TCP port 1433               |
+| AWS services    | Access to Amazon Bedrock and AWS DevOps Agent      |
+| Region          | Supported AWS Region                               |
+| Runtime         | Python 3.12+                                       |
+
+The sample implementation uses AWS CloudFormation to deploy the resources.
+
+It creates:
+
+- Two Lambda functions.
+- AgentCore Gateway.
+- Thirteen MCP tool definitions.
+- AWS DevOps Agent integration.
+- Three CloudWatch alarms.
+- Webhook authentication resources.
+
+The three demonstration alarms monitor:
+
+1. High CPU.
+2. High connections.
+3. High read latency.
+
+Refer to the AWS sample implementation:
+
+[AWS Database Blog – Complete architecture and deployment instructions](https://aws.amazon.com/blogs/database/integrate-mcp-tools-agent-skills-and-aws-devops-agent-for-ai-driven-database-investigation/).
+
+## **11. Agent Skills – Customizing Database Investigation Procedures**
+
+One of the most interesting concepts is that DBAs can customize the investigation methodology using Markdown-based skill files.
+
+The example structure is:
+
+```
+sql-server-investigation/
+│
+├── SKILL.md
+│
+└── references/
+    └── tool-reference.md
+```
+
+The `SKILL.md` file defines:
+
+- Skill name and description.
+- Incident-triggering conditions.
+- Investigation workflow.
+- Diagnostic decision paths.
+- Severity thresholds.
+- Expected report format.
+
+The `tool-reference.md` file contains:
+
+- Health metric thresholds.
+- MCP tool parameters.
+- Default values.
+- SQL Server wait-event mappings.
+- Diagnostic reference information.
+
+### **Example: Custom DBA investigation rules**
+
+A DBA team could define the following investigation policy:
+
+| Condition                 | Severity | Investigation                                  |
+| ------------------------- | -------- | ---------------------------------------------- |
+| CPU above 80%             | Warning  | Identify top CPU queries                       |
+| CPU above 90%             | Critical | Investigate top consumers and plan regressions |
+| Blocking above 5 minutes  | Warning  | Identify head blocker                          |
+| Blocking above 15 minutes | Critical | Examine blocking chain and transaction         |
+| High read latency         | Warning  | Investigate I/O-intensive queries              |
+| Query regression          | Warning  | Compare execution plans                        |
+| Memory pressure           | Critical | Review memory grants and workload              |
+
+Illustrative DBA thresholds only. These are not universal AWS defaults. Establish thresholds using workload baselines and business SLAs.
+
+The advantage is that investigation procedures can evolve with the database environment without rebuilding the entire agent.
+
+## **12. Traditional DBA Troubleshooting vs AI-Driven Investigation**
+
+| Area                   | Traditional approach        | AI-driven approach                 |
+| ---------------------- | --------------------------- | ---------------------------------- |
+| Alert detection        | Monitoring tools            | CloudWatch alarms                  |
+| Initial triage         | Manual                      | Agent-assisted                     |
+| Metric correlation     | Manual analysis             | Automated correlation              |
+| Blocking investigation | DBA scripts                 | MCP diagnostic tools               |
+| Query regression       | Manual Query Store analysis | Agent-assisted analysis            |
+| Execution plans        | DBA interpretation          | Agent-assisted interpretation      |
+| Root cause analysis    | Manual investigation        | Evidence-based agent investigation |
+| Incident reporting     | Manually prepared           | Automatically generated            |
+| Remediation            | DBA-approved                | Recommendations; human validation  |
+
+**My assessment:** The biggest improvement is not eliminating DBA work. It is reducing the time spent collecting and correlating diagnostic evidence.
+
+A senior DBA still needs to validate the findings, understand workload characteristics, and approve production changes.
+
+## **13. Limitations and Considerations for Production DBAs**
+
+This architecture is promising, but there are several considerations before implementing it in an enterprise environment.
+
+### **13.1 Platform limitation**
+
+The reference implementation specifically demonstrates Amazon RDS for SQL Server.
+
+It should not automatically be assumed to support every SQL Server deployment model, including:
+
+- SQL Server on EC2.
+- On-premises SQL Server.
+- Azure SQL Managed Instance.
+- Azure SQL Database.
+
+These environments would require appropriate diagnostic integrations and connectivity.
+
+### **13.2 Monitoring dependency**
+
+The quality of investigation depends on the availability and accuracy of monitoring information.
+
+Missing Query Store data, incomplete telemetry, or incorrect alert thresholds can reduce diagnostic accuracy.
+
+### **13.3 AI-generated recommendations**
+
+AI recommendations should not be treated as guaranteed solutions.
+
+For example:
+
+- An index recommendation may increase write overhead.
+- Killing a blocking session may trigger transaction rollback.
+- Increasing CPU or memory capacity may not resolve inefficient SQL.
+- Changing an alert threshold may hide a genuine recurring problem.
+
+### **13.4 Cost considerations**
+
+The architecture introduces additional AWS services and execution components.
+
+Organizations should evaluate:
+
+- AWS DevOps Agent pricing.
+- Amazon Bedrock-related charges, where applicable.
+- Lambda execution.
+- AgentCore Gateway usage.
+- CloudWatch ingestion and retention.
+- Secrets Manager.
+- Network and data-transfer costs.
+
+### **13.5 Human approval**
+
+I recommend maintaining a clear distinction between:
+
+**Automated investigation:** Collect evidence, identify potential root causes, and generate recommendations.
+
+**Controlled remediation:** Execute production changes only through approved operational workflows.
+
+## **14. Additional Opportunities for SQL Server DBAs**
+
+The architecture opens opportunities for building specialized AI-powered DBA capabilities.
+
+Here are some extensions worth exploring.
+
+| DBA automation                | Potential capability                                            |
+| ----------------------------- | --------------------------------------------------------------- |
+| Always On Availability Groups | Investigate replica synchronization and failover-related alerts |
+| SQL Server Agent              | Investigate failed jobs and recurring execution failures        |
+| Backup monitoring             | Investigate backup failures and recovery-point violations       |
+| Transaction log monitoring    | Identify unusual log growth and log-space pressure              |
+| Database integrity            | Analyze DBCC CHECKDB results                                    |
+| Index maintenance             | Analyze index fragmentation and usage                           |
+| Capacity planning             | Identify storage and workload growth trends                     |
+| Query Store                   | Detect query plan regressions                                   |
+| Security auditing             | Investigate suspicious database activity                        |
+| PostgreSQL monitoring         | Build equivalent PostgreSQL diagnostic tools                    |
+
+These are potential extensions, not capabilities demonstrated by the AWS reference implementation.
+
+For an enterprise DBA team, I would prioritize:
+
+1. Blocking and deadlock investigation.
+2. Query Store regression analysis.
+3. SQL Server Agent job failure investigation.
+4. Backup and recovery monitoring.
+5. Always On Availability Group health investigation.
+
+## **15. Practical Learning Project for DBAs**
+
+A useful way to understand this architecture is to build a small proof of concept.
+
+## **AI-Powered SQL Server DBA Assistant**
+
+Recommended learning project
+
+**Objective:** Build an AI-assisted diagnostic system for SQL Server performance incidents.
+
+### **Phase 1 – Database monitoring**
+
+- Configure SQL Server monitoring.
+- Enable Query Store.
+- Collect wait statistics.
+- Create blocking and CPU alerts.
+
+### **Phase 2 – MCP integration**
+
+- Develop diagnostic tools.
+- Expose blocking information.
+- Retrieve expensive queries.
+- Retrieve execution plans.
+- Analyze Query Store regressions.
+
+### **Phase 3 – Agent Skills**
+
+- Define investigation workflows.
+- Configure severity thresholds.
+- Define diagnostic decision paths.
+- Standardize RCA reports.
+
+### **Phase 4 – Incident investigation**
+
+- Trigger investigations from alerts.
+- Correlate monitoring and SQL diagnostics.
+- Generate findings.
+- Validate recommendations with a DBA.
+
+This project can also be adapted for PostgreSQL using PostgreSQL-specific diagnostic tools and investigation skills.
+
+## **16. Final Thoughts**
+
+The integration of MCP, Agent Skills, and AWS DevOps Agent represents an important development in database operations.
+
+Traditionally, DBAs have relied on monitoring platforms, custom T-SQL scripts, Query Store, Extended Events, and manual investigation procedures.
+
+The new approach connects these capabilities to an AI-driven investigation framework.
+
+The most important architectural concept is the separation of responsibilities:
+
+- CloudWatch identifies abnormal conditions.
+- AWS DevOps Agent coordinates investigations.
+- Agent Skills define the investigation methodology.
+- MCP exposes database diagnostic capabilities.
+- AgentCore Gateway controls access to diagnostic tools.
+- Lambda executes database queries.
+- SQL Server provides the actual diagnostic evidence.
+
+**My conclusion:** AI will not eliminate the need for experienced Database Administrators. However, DBAs who understand database internals, observability, automation, MCP, and agent-based architectures will be better positioned to build the next generation of database operations platforms.
+
+The future DBA role will increasingly combine traditional database engineering with AI-assisted operational intelligence.
+
+## **References and further reading**
+
+1. [AWS – AI-driven database investigation using MCP, Agent Skills, and AWS DevOps Agent](https://aws.amazon.com/blogs/database/integrate-mcp-tools-agent-skills-and-aws-devops-agent-for-ai-driven-database-investigation/).
+2. [AWS GitHub – Sample Agentic Database Operations for SQL Server](https://github.com/aws-samples/sample-agentic-db-ops-sqlserver).
+3. [Model Context Protocol documentation](https://modelcontextprotocol.io/).
+4. [Amazon Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock-agentcore/).
+5. [Amazon RDS for SQL Server documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_SQLServer.html).
+
+**Suggested article category:** AI in Database Administration | SQL Server Performance Engineering | AWS Database Operations | Agentic AI
